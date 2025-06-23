@@ -2,11 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Analizador de Funciones</title>
+  <title>Graficador de Funciones</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; background: #f2f2f2; padding: 20px; }
+    body { font-family: Arial, sans-serif; background: #f8f8f8; padding: 20px; }
     input, button { font-size: 16px; padding: 10px; margin: 5px; }
     #grafico { margin-top: 30px; }
     #bot-explica { margin-top: 20px; background: #e0f7fa; padding: 15px; border-radius: 10px; }
@@ -14,7 +14,7 @@
 </head>
 <body>
 
-<h2>📘 Analizador de Funciones Lineales, Cuadráticas y Racionales</h2>
+<h2>📘 Graficador de Funciones Lineales, Cuadráticas y Racionales</h2>
 <p>Ejemplos válidos: <code>2*x + 3</code> | <code>x^2 - 4</code> | <code>2 / (x - 2)</code></p>
 
 <input type="text" id="funcion" placeholder="Ejemplo: 2 / (x - 2)" size="40">
@@ -30,7 +30,7 @@
 
   function graficarFuncion() {
     const entrada = document.getElementById("funcion").value.trim();
-    const expresion = entrada.replace(/^y\s*=\s*/i, ''); // Eliminar "y=" si está presente
+    const expresion = entrada.replace(/^y\\s*=\\s*/i, '');
     const expr = math.parse(expresion);
     const compiled = expr.compile();
     const evaluar = x => {
@@ -49,7 +49,7 @@
     if (expresion.includes("/")) tipo = "racional";
 
     let dominio = "ℝ (todos los reales)";
-    let rango = "";
+    let rango = "ℝ";
     let asintotasV = [], asintotaH = null;
     let color = tipo === "lineal" ? "orange" : tipo === "cuadrática" ? "blue" : "purple";
 
@@ -61,24 +61,25 @@
         const xV = -b / (2 * a);
         const yV = evaluar(xV);
         rango = a > 0 ? `[${yV.toFixed(2)}, ∞)` : `(-∞, ${yV.toFixed(2)}]`;
-      } else {
-        rango = "ℝ (todos los reales)";
       }
 
       // Detectar asíntotas verticales
-      for (let x = -20; x <= 20; x += 0.1) {
+      for (let x = -20; x <= 20; x += 0.05) {
         const y1 = evaluar(x);
         const y2 = evaluar(x + 0.01);
-        if (!isFinite(y1) || Math.abs(y2 - y1) > 1000) {
+        if (!isFinite(y1) || !isFinite(y2) || Math.abs(y2 - y1) > 100) {
           asintotasV.push(parseFloat(x.toFixed(2)));
         }
       }
-      asintotasV = [...new Set(asintotasV.map(x => x.toFixed(2)))];
+      asintotasV = [...new Set(asintotasV)];
 
-      // Asíntota horizontal (limite cuando x tiende a infinito)
+      // Asíntota horizontal (limite hacia ±infinito)
       if (tipo === "racional") {
-        const limite = evaluar(1e5);
-        if (isFinite(limite)) asintotaH = `y = ${limite.toFixed(2)}`;
+        const limiteDer = evaluar(1e4);
+        const limiteIzq = evaluar(-1e4);
+        if (isFinite(limiteDer) && isFinite(limiteIzq) && Math.abs(limiteDer - limiteIzq) < 1) {
+          asintotaH = `y = ${((limiteDer + limiteIzq)/2).toFixed(2)}`;
+        }
       }
 
       let x_vals = [], y_vals = [], puntos = {x: [], y: []};
@@ -111,24 +112,26 @@
         }
       ];
 
+      // Dibujar asíntotas verticales
       asintotasV.forEach(x => {
         trazas.push({
           x: [x, x],
           y: [-100, 100],
           mode: 'lines',
-          name: 'Asíntota vertical',
-          line: { dash: 'dash', color: 'red' }
+          name: `Asintota x = ${x}`,
+          line: { dash: 'dash', color: 'red', width: 2 }
         });
       });
 
+      // Dibujar asíntota horizontal
       if (asintotaH) {
         const yVal = parseFloat(asintotaH.split("=")[1]);
         trazas.push({
           x: [-20, 20],
           y: [yVal, yVal],
           mode: 'lines',
-          name: 'Asíntota horizontal',
-          line: { dash: 'dot', color: 'green' }
+          name: asintotaH,
+          line: { dash: 'dot', color: 'green', width: 2 }
         });
       }
 
@@ -146,9 +149,10 @@
         <p><strong>↔️ Asíntota horizontal:</strong> ${asintotaH || 'Ninguna'}</p>
       `;
 
-      ultimaExplicacion = `Esta es una función ${tipo}. El dominio es ${dominio}. El rango es ${rango}. `;
+      ultimaExplicacion = `Esta es una función ${tipo}. Su dominio es ${dominio}. El rango aproximado es ${rango}. `;
       if (asintotasV.length) ultimaExplicacion += `Tiene asíntotas verticales en x = ${asintotasV.join(', ')}. `;
-      if (asintotaH) ultimaExplicacion += `Tiene una asíntota horizontal en ${asintotaH}.`;
+      if (asintotaH) ultimaExplicacion += `Tiene asíntota horizontal en ${asintotaH}.`;
+
       bot.innerHTML = `<strong>🤖 Bot:</strong> ${ultimaExplicacion}`;
 
     } catch (err) {
