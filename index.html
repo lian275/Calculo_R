@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Resolución de Funciones Cuadráticas y Lineales</title>
+  <title>Funciones Cuadráticas y Lineales</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
   <style>
@@ -27,7 +27,7 @@
   <h2>📈 Funciones Cuadráticas y Lineales</h2>
   <p>Ejemplos: <code>x^2 - 4x + 3</code>, <code>2x + 5</code></p>
 
-  <input id="funcion" placeholder="Ingresa una función, ej. x^2 - 4x + 3" />
+  <input id="funcion" placeholder="Ej: x^2 - 4x + 3 o 2x + 5" />
   <button onclick="resolver()">Resolver</button>
 
   <div id="output"></div>
@@ -48,32 +48,32 @@
         return;
       }
 
-      // Analiza si es lineal o cuadrática
       const polinomio = math.simplify(input);
       const grado = math.degree(polinomio, 'x');
 
-      let dominioTexto = "Todos los reales ℝ";
-      let rangoTexto = "";
-      let infoExtra = "";
-      let asintotasH = [], asintotasV = [];
+      let tipo = "", dominioTexto = "Todos los reales ℝ", rangoTexto = "";
+      let infoExtra = "", textoVoz = "";
+      let asintotasH = [], shapes = [];
 
       if (grado === 1) {
-        // Función lineal
+        tipo = "lineal";
         rangoTexto = "Todos los reales ℝ";
-        infoExtra = "Tipo de función: Lineal.";
+        infoExtra = "Tipo de función: lineal.";
       } else if (grado === 2) {
-        // Función cuadrática
-        const coef = math.simplify(input).coefficients();
-        const a = coef[0], b = coef[1], c = coef[2];
+        tipo = "cuadrática";
+        // Extraer coeficientes a, b, c
+        const coefs = math.simplify(input).coefficients();
+        let a = coefs[0] || 0;
+        let b = coefs[1] || 0;
+        let c = coefs[2] || 0;
 
         const verticeX = -b / (2 * a);
         const verticeY = a * verticeX ** 2 + b * verticeX + c;
-
         rangoTexto = a > 0
           ? `Desde ${verticeY.toFixed(2)} hasta ∞`
           : `Desde -∞ hasta ${verticeY.toFixed(2)}`;
 
-        infoExtra = `Tipo de función: Cuadrática. Vértice: (${verticeX.toFixed(2)}, ${verticeY.toFixed(2)})`;
+        infoExtra = `Tipo de función: cuadrática. Vértice: (${verticeX.toFixed(2)}, ${verticeY.toFixed(2)})`;
       } else {
         output.innerHTML = "Solo se permiten funciones lineales o cuadráticas.";
         hablar("Solo puedes ingresar funciones cuadráticas o lineales.");
@@ -88,13 +88,10 @@
         yValues.push(y);
       }
 
-      // Estimar asíntotas horizontales (para funciones de grado menor que racionales)
+      // Asíntotas horizontales si existieran
       const limPos = estimarLimite(f, 1e6);
       const limNeg = estimarLimite(f, -1e6);
 
-      let shapes = [];
-
-      // Asíntotas horizontales (no suelen existir en cuadráticas o lineales, pero lo mostramos si se diera)
       if (isFinite(limPos)) {
         shapes.push({
           type: 'line',
@@ -104,6 +101,7 @@
         });
         asintotasH.push(limPos.toFixed(2));
       }
+
       if (isFinite(limNeg) && limNeg !== limPos) {
         shapes.push({
           type: 'line',
@@ -114,7 +112,7 @@
         asintotasH.push(limNeg.toFixed(2));
       }
 
-      // Graficar función
+      // Gráfico con Plotly
       const trace = {
         x: xValues,
         y: yValues,
@@ -130,7 +128,7 @@
         shapes: shapes
       });
 
-      // Mostrar resultado
+      // Mostrar resultados
       const resultadoHTML = `
         ✅ <b>Dominio:</b> ${dominioTexto}<br>
         📈 <b>Rango:</b> ${rangoTexto}<br>
@@ -139,9 +137,12 @@
       `;
       output.innerHTML = resultadoHTML;
 
-      // Bot de voz
-      let textoVoz = `El dominio es ${dominioTexto}. El rango es ${rangoTexto}. `;
-      if (asintotasH.length > 0) textoVoz += ` Tiene asíntotas horizontales en y igual a ${asintotasH.join(", ")}.`;
+      // Texto para el bot de voz
+      textoVoz = `Función ${tipo}. El dominio es: ${dominioTexto}. El rango es: ${rangoTexto}. `;
+      if (asintotasH.length > 0) {
+        textoVoz += `Tiene asíntotas horizontales en y igual a ${asintotasH.join(", ")}.`;
+      }
+
       hablar(textoVoz);
     }
 
