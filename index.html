@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Graficador con Dominio, Rango y Asíntotas</title>
+  <title>Resolución de Funciones Cuadráticas y Lineales</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
   <style>
@@ -24,17 +24,17 @@
 </head>
 <body>
 
-  <h2>📈 Graficador de Funciones</h2>
-  <p>Escribe una función: <code>x^2</code>, <code>1/(x-2)</code>, <code>sqrt(x)</code>, <code>log(x)</code></p>
+  <h2>📈 Funciones Cuadráticas y Lineales</h2>
+  <p>Ejemplos: <code>x^2 - 4x + 3</code>, <code>2x + 5</code></p>
 
-  <input id="funcion" placeholder="Ej: x^2 - 4" />
-  <button onclick="graficar()">Graficar</button>
+  <input id="funcion" placeholder="Ingresa una función, ej. x^2 - 4x + 3" />
+  <button onclick="resolver()">Resolver</button>
 
   <div id="output"></div>
   <div id="grafico" style="width: 100%; height: 500px;"></div>
 
   <script>
-    function graficar() {
+    function resolver() {
       const input = document.getElementById("funcion").value;
       const output = document.getElementById("output");
       let expr;
@@ -43,59 +43,58 @@
         expr = math.parse(input);
         var f = expr.compile();
       } catch {
-        output.innerHTML = "❌ Error: función no válida.";
-        hablar("Error. La función no es válida.");
+        output.innerHTML = "❌ Función no válida.";
+        hablar("Error. La función ingresada no es válida.");
         return;
       }
 
-      // 1. Analizar dominio exacto
-      let exclusiones = analizarDominio(expr);
-      const dominioTexto = exclusiones.length > 0
-        ? `Todos los reales excepto x = ${exclusiones.join(", ")}`
-        : "Todos los reales ℝ";
+      // Analiza si es lineal o cuadrática
+      const polinomio = math.simplify(input);
+      const grado = math.degree(polinomio, 'x');
 
-      // 2. Evaluar puntos para graficar y encontrar asintotas verticales
-      let xValues = [], yValues = [], asintotasV = [];
+      let dominioTexto = "Todos los reales ℝ";
+      let rangoTexto = "";
+      let infoExtra = "";
+      let asintotasH = [], asintotasV = [];
 
-      for (let i = -100; i <= 100; i += 0.5) {
-        let scope = { x: i };
-        try {
-          let y = f.evaluate(scope);
-          if (!isFinite(y)) {
-            yValues.push(null);
-            asintotasV.push(i.toFixed(2));
-          } else {
-            yValues.push(y);
-          }
-        } catch {
-          yValues.push(null);
-          asintotasV.push(i.toFixed(2));
-        }
-        xValues.push(i);
+      if (grado === 1) {
+        // Función lineal
+        rangoTexto = "Todos los reales ℝ";
+        infoExtra = "Tipo de función: Lineal.";
+      } else if (grado === 2) {
+        // Función cuadrática
+        const coef = math.simplify(input).coefficients();
+        const a = coef[0], b = coef[1], c = coef[2];
+
+        const verticeX = -b / (2 * a);
+        const verticeY = a * verticeX ** 2 + b * verticeX + c;
+
+        rangoTexto = a > 0
+          ? `Desde ${verticeY.toFixed(2)} hasta ∞`
+          : `Desde -∞ hasta ${verticeY.toFixed(2)}`;
+
+        infoExtra = `Tipo de función: Cuadrática. Vértice: (${verticeX.toFixed(2)}, ${verticeY.toFixed(2)})`;
+      } else {
+        output.innerHTML = "Solo se permiten funciones lineales o cuadráticas.";
+        hablar("Solo puedes ingresar funciones cuadráticas o lineales.");
+        return;
       }
 
-      let yFiltrado = yValues.filter(v => v !== null && isFinite(v));
-      let minY = Math.min(...yFiltrado);
-      let maxY = Math.max(...yFiltrado);
-      let rangoTexto = `Desde aproximadamente ${minY.toFixed(2)} hasta ${maxY.toFixed(2)}`;
+      // Puntos para graficar
+      let xValues = [], yValues = [];
+      for (let i = -50; i <= 50; i += 0.1) {
+        let y = f.evaluate({ x: i });
+        xValues.push(i);
+        yValues.push(y);
+      }
 
-      // 3. Estimar asíntotas horizontales (límites)
+      // Estimar asíntotas horizontales (para funciones de grado menor que racionales)
       const limPos = estimarLimite(f, 1e6);
       const limNeg = estimarLimite(f, -1e6);
 
       let shapes = [];
 
-      // Asíntotas verticales
-      let asintotasUnicas = [...new Set(asintotasV)];
-      shapes.push(...asintotasUnicas.map(x0 => ({
-        type: 'line',
-        x0: parseFloat(x0), x1: parseFloat(x0),
-        y0: -100, y1: 100,
-        line: { color: 'red', width: 1.5, dash: 'dot' }
-      })));
-
-      // Asíntotas horizontales
-      let asintotasH = [];
+      // Asíntotas horizontales (no suelen existir en cuadráticas o lineales, pero lo mostramos si se diera)
       if (isFinite(limPos)) {
         shapes.push({
           type: 'line',
@@ -115,7 +114,7 @@
         asintotasH.push(limNeg.toFixed(2));
       }
 
-      // 4. Gráfico con Plotly
+      // Graficar función
       const trace = {
         x: xValues,
         y: yValues,
@@ -131,19 +130,18 @@
         shapes: shapes
       });
 
-      // 5. Mostrar resultados
+      // Mostrar resultado
       const resultadoHTML = `
         ✅ <b>Dominio:</b> ${dominioTexto}<br>
         📈 <b>Rango:</b> ${rangoTexto}<br>
-        🔺 <b>Asíntotas verticales:</b> ${asintotasUnicas.length > 0 ? asintotasUnicas.join(", ") : "Ninguna"}<br>
-        🔻 <b>Asíntotas horizontales:</b> ${asintotasH.length > 0 ? asintotasH.join(", ") : "Ninguna"}
+        🔻 <b>Asíntotas horizontales:</b> ${asintotasH.length > 0 ? asintotasH.join(", ") : "Ninguna"}<br>
+        ℹ️ ${infoExtra}
       `;
       output.innerHTML = resultadoHTML;
 
-      // 6. Bot de voz
-      let textoVoz = `El dominio es: ${dominioTexto}. El rango es de ${minY.toFixed(2)} a ${maxY.toFixed(2)}.`;
-      if (asintotasUnicas.length > 0) textoVoz += ` Asíntotas verticales en x igual a ${asintotasUnicas.join(", ")}.`;
-      if (asintotasH.length > 0) textoVoz += ` Asíntotas horizontales en y igual a ${asintotasH.join(", ")}.`;
+      // Bot de voz
+      let textoVoz = `El dominio es ${dominioTexto}. El rango es ${rangoTexto}. `;
+      if (asintotasH.length > 0) textoVoz += ` Tiene asíntotas horizontales en y igual a ${asintotasH.join(", ")}.`;
       hablar(textoVoz);
     }
 
@@ -153,38 +151,6 @@
       } catch {
         return NaN;
       }
-    }
-
-    function analizarDominio(expr) {
-      let exclusiones = [];
-
-      expr.traverse(function (node) {
-        if (node.type === 'OperatorNode' && node.op === '/') {
-          try {
-            let den = node.args[1];
-            let fDen = den.compile();
-            for (let i = -100; i <= 100; i += 0.5) {
-              let val = fDen.evaluate({ x: i });
-              if (Math.abs(val) < 0.0001) exclusiones.push(i.toFixed(2));
-            }
-          } catch {}
-        }
-        if (node.type === 'FunctionNode') {
-          const fn = node.fn.name;
-          let arg = node.args[0];
-          let fArg = arg.compile();
-          for (let i = -100; i <= 100; i += 0.5) {
-            try {
-              let val = fArg.evaluate({ x: i });
-              if ((fn === 'sqrt' && val < 0) || (fn === 'log' && val <= 0)) {
-                exclusiones.push(i.toFixed(2));
-              }
-            } catch {}
-          }
-        }
-      });
-
-      return [...new Set(exclusiones)];
     }
 
     function hablar(texto) {
