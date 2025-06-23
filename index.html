@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Funciones Lineales y Cuadráticas con Asintotas</title>
+  <meta charset="UTF-8" />
+  <title>Funciones Lineales y Cuadráticas</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+    body { font-family: Arial; padding: 20px; background: #f2f2f2; }
     input, button { padding: 10px; margin: 5px; font-size: 16px; }
     #grafico { margin-top: 20px; }
-    #bot-explica { margin-top: 20px; background: #e0f7fa; padding: 15px; border-radius: 10px; }
+    #bot-explica { background: #e8f5e9; padding: 15px; border-radius: 10px; margin-top: 20px; }
   </style>
 </head>
 <body>
 
-<h2>📊 Funciones Lineales y Cuadráticas + Dominio/Rango/Gráfica + Bot de Voz</h2>
-<p>Ejemplos: <code>2*x + 4 = 0</code> | <code>x**2 - 4 = 0</code></p>
+<h2>📘 Funciones Lineales y Cuadráticas con Bot y Asíntotas</h2>
+<p>Ejemplos válidos: <code>2*x + 4 = 0</code> | <code>x**2 - 4 = 0</code> | <code>1 / (x - 2) = 0</code></p>
 
 <input type="text" id="ecuacion" placeholder="Ej: x**2 - 4 = 0" size="40">
 <button onclick="resolver()">Resolver</button>
@@ -34,39 +34,47 @@
     const bot = document.getElementById("bot-explica");
 
     if (partes.length !== 2) {
-      res.innerHTML = "<p style='color:red;'>❌ Usa el formato ax + b = 0 o ax² + bx + c = 0</p>";
+      res.innerHTML = "<p style='color:red;'>❌ Formato inválido. Usa ax + b = 0 o ax² + bx + c = 0</p>";
       return;
     }
 
     const izq = partes[0];
     const der = partes[1];
-    const f = x => eval(izq.replace(/x/g, `(${x})`)) - eval(der.replace(/x/g, `(${x})`));
+    const f = x => {
+      try {
+        return eval(izq.replace(/x/g, `(${x})`)) - eval(der.replace(/x/g, `(${x})`));
+      } catch { return NaN; }
+    };
 
-    const tipo = izq.includes("x**2") || izq.includes("x*x") ? "cuadrática" : "lineal";
-    let solucionTexto = "", soluciones = [];
+    const esCuadratica = izq.includes("x**2") || izq.includes("x*x");
+    const esRacional = izq.includes("/") || der.includes("/");
+
+    let tipo = "lineal";
+    if (esCuadratica) tipo = "cuadrática";
+    else if (esRacional) tipo = "racional";
+
+    let solucionTexto = "";
+    let soluciones = [];
     let dominio = "ℝ";
     let rango = "";
-    let color = tipo === "lineal" ? "orange" : "blue";
+    let asintotasV = [];
+    let asintotaH = null;
+    let color = tipo === "lineal" ? "orange" : tipo === "cuadrática" ? "blue" : "purple";
 
     try {
       if (tipo === "lineal") {
         const a = eval(izq.replace(/x/g, '(1)')) - eval(izq.replace(/x/g, '(0)'));
         const b = eval(izq.replace(/x/g, '(0)')) - eval(der);
-        if (a === 0) {
-          solucionTexto = b === 0 ? "Infinitas soluciones" : "No tiene solución";
-        } else {
-          const x = -b / a;
-          solucionTexto = `x = ${x.toFixed(2)}`;
-          soluciones.push(x);
-        }
+        const x = -b / a;
+        solucionTexto = `x = ${x.toFixed(2)}`;
+        soluciones.push(x);
         rango = "ℝ";
-      } else {
+      } else if (tipo === "cuadrática") {
         const f0 = f(0), f1 = f(1), f2 = f(2);
         const a = (f2 - 2 * f1 + f0);
         const b = f1 - f0 - a;
         const c = f0;
         const D = b * b - 4 * a * c;
-
         if (D < 0) {
           solucionTexto = "No tiene soluciones reales";
         } else if (D === 0) {
@@ -79,23 +87,31 @@
           solucionTexto = `x₁ = ${x1.toFixed(2)}, x₂ = ${x2.toFixed(2)}`;
           soluciones.push(x1, x2);
         }
-
         const xV = -b / (2 * a);
         const yV = f(xV);
         rango = a > 0 ? `[${yV.toFixed(2)}, ∞)` : `(-∞, ${yV.toFixed(2)}]`;
+      } else {
+        // Asintotas para racionales
+        for (let x = -100; x <= 100; x++) {
+          let y1 = izq.replace(/x/g, `(${x})`);
+          if (y1.includes("/0")) asintotasV.push(x);
+        }
+        asintotaH = "y = 0";
+        solucionTexto = "Calculado por análisis racional.";
+        rango = "Variable según discontinuidades.";
       }
 
-      // Datos para gráfica
+      // Generar puntos
       let x_vals = [], y_vals = [];
-      for (let i = -20; i <= 20; i += 0.1) {
-        let y = f(i);
+      for (let x = -20; x <= 20; x += 0.1) {
+        const y = f(x);
         if (isFinite(y)) {
-          x_vals.push(i);
+          x_vals.push(x);
           y_vals.push(y);
         }
       }
 
-      // Graficar función principal
+      // Graficar
       const grafico = [{
         x: x_vals,
         y: y_vals,
@@ -104,17 +120,6 @@
         line: { color: color }
       }];
 
-      // Agregar asíntotas verticales (si fueran funciones racionales futuras)
-      // Ejemplo para demostrar: asíntota en x = 2
-      // grafico.push({
-      //   x: [2, 2],
-      //   y: [-100, 100],
-      //   mode: 'lines',
-      //   name: 'Asíntota vertical',
-      //   line: { dash: 'dash', color: 'red' }
-      // });
-
-      // Graficar soluciones (si hay)
       soluciones.forEach(x => {
         grafico.push({
           x: [x],
@@ -125,24 +130,49 @@
         });
       });
 
+      // Asíntotas verticales
+      asintotasV.forEach(x => {
+        grafico.push({
+          x: [x, x],
+          y: [-100, 100],
+          mode: 'lines',
+          name: 'Asíntota vertical',
+          line: { dash: 'dash', color: 'red' }
+        });
+      });
+
+      // Asíntota horizontal
+      if (asintotaH === "y = 0") {
+        grafico.push({
+          x: [-20, 20],
+          y: [0, 0],
+          mode: 'lines',
+          name: 'Asíntota horizontal',
+          line: { dash: 'dot', color: 'green' }
+        });
+      }
+
       Plotly.newPlot("grafico", grafico, {
         title: `Gráfica de f(x) = ${izq} - (${der})`,
-        xaxis: { title: 'x', range: [-20, 20] },
+        xaxis: { title: 'x' },
         yaxis: { title: 'f(x)' }
       });
 
+      // Mostrar resultados
       res.innerHTML = `
-        <p><strong>🧮 Tipo:</strong> Función ${tipo}</p>
+        <p><strong>🔍 Tipo:</strong> Función ${tipo}</p>
         <p><strong>✅ Solución:</strong> ${solucionTexto}</p>
-        <p><strong>📈 Dominio exacto:</strong> ${dominio}</p>
-        <p><strong>📉 Rango exacto:</strong> ${rango}</p>
+        <p><strong>📈 Dominio:</strong> ${dominio}</p>
+        <p><strong>📉 Rango:</strong> ${rango}</p>
+        <p><strong>📏 Asíntotas verticales:</strong> ${asintotasV.length ? asintotasV.join(", ") : "Ninguna"}</p>
+        <p><strong>📏 Asíntota horizontal:</strong> ${asintotaH ? asintotaH : "Ninguna"}</p>
       `;
 
-      // Bot texto
-      let explicacion = `Has ingresado una función ${tipo}. `;
-      explicacion += `La solución de la ecuación es: ${solucionTexto}. `;
-      explicacion += `El dominio es todos los reales. `;
-      explicacion += `El rango exacto es: ${rango}.`;
+      // Bot de voz
+      let explicacion = `Esta es una función ${tipo}. La solución es: ${solucionTexto}. `;
+      explicacion += `El dominio es todos los reales. El rango es ${rango}. `;
+      if (asintotasV.length > 0) explicacion += `Tiene asíntotas verticales en x igual a ${asintotasV.join(", ")}. `;
+      if (asintotaH) explicacion += `Tiene asíntota horizontal en ${asintotaH}.`;
       bot.innerHTML = `<p>🤖 <strong>Bot:</strong> ${explicacion}</p>`;
       ultimaExplicacion = explicacion;
 
