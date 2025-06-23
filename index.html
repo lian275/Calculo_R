@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Graficador con Dominio Exacto</title>
+  <title>Graficador con Dominio, Rango y Asíntotas</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
   <style>
@@ -24,10 +24,10 @@
 </head>
 <body>
 
-  <h2>📊 Graficador con Dominio Exacto y Asíntotas</h2>
-  <p>Ejemplos: <code>1/(x-2)</code>, <code>sqrt(x)</code>, <code>x^2</code>, <code>log(x)</code>, <code>e^x</code></p>
+  <h2>📈 Graficador de Funciones</h2>
+  <p>Escribe una función: <code>x^2</code>, <code>1/(x-2)</code>, <code>sqrt(x)</code>, <code>log(x)</code></p>
 
-  <input id="funcion" placeholder="Escribe la función: ej. 2/(x-1)" />
+  <input id="funcion" placeholder="Ej: x^2 - 4" />
   <button onclick="graficar()">Graficar</button>
 
   <div id="output"></div>
@@ -48,13 +48,13 @@
         return;
       }
 
-      // Análisis del dominio exacto
-      let dominioInfo = analizarDominio(expr);
-      let dominioTexto = dominioInfo.length > 0
-        ? `x ≠ ${dominioInfo.join(", ")}`
+      // 1. Analizar dominio exacto
+      let exclusiones = analizarDominio(expr);
+      const dominioTexto = exclusiones.length > 0
+        ? `Todos los reales excepto x = ${exclusiones.join(", ")}`
         : "Todos los reales ℝ";
 
-      // Preparar datos para graficar
+      // 2. Evaluar puntos para graficar y encontrar asintotas verticales
       let xValues = [], yValues = [], asintotasV = [];
 
       for (let i = -100; i <= 100; i += 0.5) {
@@ -77,9 +77,9 @@
       let yFiltrado = yValues.filter(v => v !== null && isFinite(v));
       let minY = Math.min(...yFiltrado);
       let maxY = Math.max(...yFiltrado);
-      let rangoTexto = `Desde aproximadamente ${minY.toFixed(2)} hasta ${maxY.toFixed(2)} (estimado)`;
+      let rangoTexto = `Desde aproximadamente ${minY.toFixed(2)} hasta ${maxY.toFixed(2)}`;
 
-      // Estimar asíntotas horizontales
+      // 3. Estimar asíntotas horizontales (límites)
       const limPos = estimarLimite(f, 1e6);
       const limNeg = estimarLimite(f, -1e6);
 
@@ -115,7 +115,7 @@
         asintotasH.push(limNeg.toFixed(2));
       }
 
-      // Graficar
+      // 4. Gráfico con Plotly
       const trace = {
         x: xValues,
         y: yValues,
@@ -131,17 +131,17 @@
         shapes: shapes
       });
 
-      // Mostrar resultados
+      // 5. Mostrar resultados
       const resultadoHTML = `
-        ✅ <b>Dominio exacto:</b> ${dominioTexto}<br>
+        ✅ <b>Dominio:</b> ${dominioTexto}<br>
         📈 <b>Rango:</b> ${rangoTexto}<br>
         🔺 <b>Asíntotas verticales:</b> ${asintotasUnicas.length > 0 ? asintotasUnicas.join(", ") : "Ninguna"}<br>
         🔻 <b>Asíntotas horizontales:</b> ${asintotasH.length > 0 ? asintotasH.join(", ") : "Ninguna"}
       `;
       output.innerHTML = resultadoHTML;
 
-      // Bot de voz
-      let textoVoz = `El dominio es ${dominioTexto}. El rango es aproximadamente desde ${minY.toFixed(2)} hasta ${maxY.toFixed(2)}.`;
+      // 6. Bot de voz
+      let textoVoz = `El dominio es: ${dominioTexto}. El rango es de ${minY.toFixed(2)} a ${maxY.toFixed(2)}.`;
       if (asintotasUnicas.length > 0) textoVoz += ` Asíntotas verticales en x igual a ${asintotasUnicas.join(", ")}.`;
       if (asintotasH.length > 0) textoVoz += ` Asíntotas horizontales en y igual a ${asintotasH.join(", ")}.`;
       hablar(textoVoz);
@@ -159,27 +159,25 @@
       let exclusiones = [];
 
       expr.traverse(function (node) {
-        if (node.type === 'OperatorNode') {
-          if (node.op === '/') {
-            // Denominador ≠ 0
+        if (node.type === 'OperatorNode' && node.op === '/') {
+          try {
+            let den = node.args[1];
+            let fDen = den.compile();
+            for (let i = -100; i <= 100; i += 0.5) {
+              let val = fDen.evaluate({ x: i });
+              if (Math.abs(val) < 0.0001) exclusiones.push(i.toFixed(2));
+            }
+          } catch {}
+        }
+        if (node.type === 'FunctionNode') {
+          const fn = node.fn.name;
+          let arg = node.args[0];
+          let fArg = arg.compile();
+          for (let i = -100; i <= 100; i += 0.5) {
             try {
-              let den = node.args[1];
-              let sol = math.simplify(`(${math.format(den)}) = 0`).evaluate();
-              if (typeof sol === 'number' && isFinite(sol)) {
-                exclusiones.push(sol.toFixed(2));
-              }
-            } catch {}
-          }
-        } else if (node.type === 'FunctionNode') {
-          if (node.fn.name === 'sqrt' || node.fn.name === 'log') {
-            try {
-              let arg = node.args[0];
-              for (let i = -100; i <= 100; i += 0.5) {
-                let val = arg.compile().evaluate({ x: i });
-                if ((node.fn.name === 'sqrt' && val < 0) ||
-                    (node.fn.name === 'log' && val <= 0)) {
-                  exclusiones.push(i.toFixed(2));
-                }
+              let val = fArg.evaluate({ x: i });
+              if ((fn === 'sqrt' && val < 0) || (fn === 'log' && val <= 0)) {
+                exclusiones.push(i.toFixed(2));
               }
             } catch {}
           }
