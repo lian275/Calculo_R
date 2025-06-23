@@ -6,20 +6,47 @@
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; background: #f2f2f2; padding: 20px; }
-    input, button { font-size: 16px; padding: 10px; margin: 5px; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9fbfd;
+      color: #222;
+      padding: 20px;
+    }
+    input, button {
+      font-size: 16px;
+      padding: 10px;
+      margin: 10px;
+      width: 300px;
+    }
+    button {
+      cursor: pointer;
+      background: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
     #grafico { margin-top: 30px; }
-    #bot-explica { margin-top: 20px; background: #e0f7fa; padding: 15px; border-radius: 10px; }
+    #bot-explica {
+      margin-top: 20px;
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 10px;
+      font-style: italic;
+    }
+    #resultado p {
+      margin: 5px 0;
+    }
   </style>
 </head>
 <body>
 
 <h2>📘 Analizador de Funciones Lineales, Cuadráticas y Racionales</h2>
-<p>Ejemplos válidos: <code>2*x + 3</code> | <code>x^2 - 4</code> | <code>2 / (x - 2)</code></p>
+<p>Ejemplos: <code>2*x + 3</code>, <code>x^2 - 4</code>, <code>2 / (x - 2)</code></p>
 
-<input type="text" id="funcion" placeholder="Ejemplo: 2 / (x - 2)" size="40">
-<button onclick="graficarFuncion()">Graficar</button>
-<button onclick="leerBot()">🔊 Leer Explicación</button>
+<input type="text" id="funcion" placeholder="Ejemplo: 2 / (x - 2)">
+<br>
+<button onclick="graficarFuncion()">📊 Graficar</button>
+<button onclick="leerBot()">🔊 Escuchar Explicación</button>
 
 <div id="resultado"></div>
 <div id="grafico"></div>
@@ -30,140 +57,145 @@
 
   function graficarFuncion() {
     const entrada = document.getElementById("funcion").value.trim();
-    const expresion = entrada.replace(/^y\\s*=\\s*/i, ''); // Remueve 'y=' si existe
-    const expr = math.parse(expresion);
-    const compiled = expr.compile();
+    const expresion = entrada.replace(/^y\s*=\s*/i, '');
+    const res = document.getElementById("resultado");
+    const bot = document.getElementById("bot-explica");
+
+    let expr, compiled;
+    try {
+      expr = math.parse(expresion);
+      compiled = expr.compile();
+    } catch (e) {
+      res.innerHTML = `<p style="color:red;">❌ Error: expresión inválida.</p>`;
+      Plotly.purge("grafico");
+      bot.innerHTML = "";
+      return;
+    }
+
     const evaluar = x => {
       try {
-        return compiled.evaluate({x});
+        return compiled.evaluate({ x });
       } catch {
         return NaN;
       }
     };
 
-    const res = document.getElementById("resultado");
-    const bot = document.getElementById("bot-explica");
-
+    // Clasificación
     let tipo = "lineal";
-    if (expresion.includes("x^2")) tipo = "cuadrática";
-    if (expresion.includes("/")) tipo = "racional";
+    if (/\bx\^2\b/.test(expresion)) tipo = "cuadrática";
+    else if (expresion.includes('/')) tipo = "racional";
 
-    let dominio = "ℝ (todos los reales)";
-    let rango = "";
-    let asintotasV = [], asintotaH = null;
     let color = tipo === "lineal" ? "orange" : tipo === "cuadrática" ? "blue" : "purple";
+    let dominio = "ℝ (todos los reales)";
+    let rango = "ℝ";
+    let asintotasV = [], asintotaH = null;
 
-    try {
-      // Calcular rango para cuadráticas
-      if (tipo === "cuadrática") {
-        const f0 = evaluar(0), f1 = evaluar(1), f2 = evaluar(2);
-        const a = (f2 - 2 * f1 + f0);
-        const b = f1 - f0 - a;
-        const xV = -b / (2 * a);
-        const yV = evaluar(xV);
-        rango = a > 0 ? `[${yV.toFixed(2)}, ∞)` : `(-∞, ${yV.toFixed(2)}]`;
-      } else {
-        rango = "ℝ (todos los reales)";
-      }
-
-      // Detectar asíntotas verticales
-      for (let x = -100; x <= 100; x += 0.1) {
-        const y = evaluar(x);
-        if (!isFinite(y)) asintotasV.push(parseFloat(x.toFixed(1)));
-      }
-      asintotasV = [...new Set(asintotasV)];
-
-      // Asíntota horizontal
-      if (tipo === "racional") {
-        const limite = evaluar(1e5);
-        if (isFinite(limite)) asintotaH = `y = ${limite.toFixed(2)}`;
-      }
-
-      // Generar datos para gráfico
-      let x_vals = [], y_vals = [], puntos = {x: [], y: []};
-      for (let x = -20; x <= 20; x += 0.1) {
-        const y = evaluar(x);
-        if (isFinite(y)) {
-          x_vals.push(x);
-          y_vals.push(y);
-          if (Number.isInteger(x)) {
-            puntos.x.push(x);
-            puntos.y.push(y);
-          }
-        }
-      }
-
-      const trazas = [
-        {
-          x: x_vals,
-          y: y_vals,
-          mode: 'lines',
-          name: 'f(x)',
-          line: { color: color }
-        },
-        {
-          x: puntos.x,
-          y: puntos.y,
-          mode: 'markers',
-          name: 'Puntos enteros',
-          marker: { color: 'black', size: 6 }
-        }
-      ];
-
-      asintotasV.forEach(x => {
-        trazas.push({
-          x: [x, x],
-          y: [-100, 100],
-          mode: 'lines',
-          name: 'Asíntota vertical',
-          line: { dash: 'dash', color: 'red' }
-        });
-      });
-
-      if (asintotaH) {
-        const yVal = parseFloat(asintotaH.split("=")[1]);
-        trazas.push({
-          x: [-20, 20],
-          y: [yVal, yVal],
-          mode: 'lines',
-          name: 'Asíntota horizontal',
-          line: { dash: 'dot', color: 'green' }
-        });
-      }
-
-      Plotly.newPlot("grafico", trazas, {
-        title: `Gráfica de y = ${expresion}`,
-        xaxis: { title: 'x', range: [-20, 20] },
-        yaxis: { title: 'y' }
-      });
-
-      res.innerHTML = `
-        <p><strong>📌 Tipo:</strong> Función ${tipo}</p>
-        <p><strong>🔑 Dominio:</strong> ${dominio}</p>
-        <p><strong>📈 Rango:</strong> ${rango}</p>
-        <p><strong>↕️ Asíntotas verticales:</strong> ${asintotasV.length ? asintotasV.join(', ') : 'Ninguna'}</p>
-        <p><strong>↔️ Asíntota horizontal:</strong> ${asintotaH || 'Ninguna'}</p>
-      `;
-
-      // Guardar explicación
-      ultimaExplicacion = `Esta es una función ${tipo}. El dominio es ${dominio}. El rango es ${rango}. `;
-      if (asintotasV.length) ultimaExplicacion += `Tiene asíntotas verticales en x = ${asintotasV.join(', ')}. `;
-      if (asintotaH) ultimaExplicacion += `Tiene una asíntota horizontal en ${asintotaH}.`;
-
-      bot.innerHTML = `<strong>🤖 Bot:</strong> ${ultimaExplicacion}`;
-
-    } catch (err) {
-      res.innerHTML = `<p style="color:red;">❌ Error: función inválida.</p>`;
-      Plotly.purge("grafico");
-      bot.innerHTML = "";
+    // Rango para cuadrática (usando coeficientes)
+    if (tipo === "cuadrática") {
+      const coefs = math.simplify(expresion).coefficients();
+      let a = coefs[0] || 0;
+      let b = coefs[1] || 0;
+      let c = coefs[2] || 0;
+      const xV = -b / (2 * a);
+      const yV = evaluar(xV);
+      rango = a > 0 ? `[${yV.toFixed(2)}, ∞)` : `(-∞, ${yV.toFixed(2)}]`;
     }
+
+    // Asíntotas verticales
+    for (let x = -50; x <= 50; x += 0.2) {
+      let y = evaluar(x);
+      if (!isFinite(y)) asintotasV.push(Number(x.toFixed(2)));
+    }
+    asintotasV = [...new Set(asintotasV)];
+
+    // Asíntota horizontal
+    if (tipo === "racional") {
+      let limite = evaluar(1e6);
+      if (isFinite(limite)) asintotaH = `y = ${limite.toFixed(2)}`;
+    }
+
+    // Generar puntos
+    let x_vals = [], y_vals = [], puntos = { x: [], y: [] };
+    for (let x = -20; x <= 20; x += 0.1) {
+      let y = evaluar(x);
+      if (isFinite(y)) {
+        x_vals.push(x);
+        y_vals.push(y);
+        if (Math.abs(x % 1) < 0.01) {
+          puntos.x.push(x);
+          puntos.y.push(y);
+        }
+      }
+    }
+
+    // Graficar
+    const trazas = [
+      {
+        x: x_vals,
+        y: y_vals,
+        mode: 'lines',
+        name: 'f(x)',
+        line: { color }
+      },
+      {
+        x: puntos.x,
+        y: puntos.y,
+        mode: 'markers',
+        name: 'Puntos enteros',
+        marker: { color: 'black', size: 5 }
+      }
+    ];
+
+    asintotasV.forEach(x => {
+      trazas.push({
+        x: [x, x],
+        y: [-100, 100],
+        mode: 'lines',
+        name: 'Asíntota vertical',
+        line: { dash: 'dash', color: 'red' }
+      });
+    });
+
+    if (asintotaH) {
+      const yH = parseFloat(asintotaH.split("=")[1]);
+      trazas.push({
+        x: [-20, 20],
+        y: [yH, yH],
+        mode: 'lines',
+        name: 'Asíntota horizontal',
+        line: { dash: 'dot', color: 'green' }
+      });
+    }
+
+    Plotly.newPlot("grafico", trazas, {
+      title: `Gráfica de y = ${expresion}`,
+      xaxis: { title: 'x', range: [-20, 20] },
+      yaxis: { title: 'y' }
+    });
+
+    // Mostrar resultados
+    res.innerHTML = `
+      <p><strong>📌 Tipo:</strong> Función ${tipo}</p>
+      <p><strong>🔑 Dominio:</strong> ${dominio}</p>
+      <p><strong>📈 Rango:</strong> ${rango}</p>
+      <p><strong>↕️ Asíntotas verticales:</strong> ${asintotasV.length ? asintotasV.join(', ') : 'Ninguna'}</p>
+      <p><strong>↔️ Asíntota horizontal:</strong> ${asintotaH || 'Ninguna'}</p>
+    `;
+
+    // Bot de voz
+    ultimaExplicacion = `Esta es una función ${tipo}. El dominio es ${dominio}. El rango es ${rango}. `;
+    if (asintotasV.length) ultimaExplicacion += `Tiene asíntotas verticales en x igual a ${asintotasV.join(', ')}. `;
+    if (asintotaH) ultimaExplicacion += `Y una asíntota horizontal en ${asintotaH}.`;
+
+    bot.innerHTML = `<strong>🤖 Bot:</strong> ${ultimaExplicacion}`;
   }
 
   function leerBot() {
     if ('speechSynthesis' in window && ultimaExplicacion) {
       const voz = new SpeechSynthesisUtterance(ultimaExplicacion);
       voz.lang = 'es-ES';
-      speechSynthesis.cancel();
+      voz.rate = 1;
+      speechSynthesis.cancel(); // Cancela cualquier lectura anterior
       speechSynthesis.speak(voz);
     } else {
       alert('Tu navegador no soporta el bot de voz.');
