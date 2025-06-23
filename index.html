@@ -2,19 +2,19 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Graficador de Funciones Avanzado</title>
+  <title>Graficador con Dominio Exacto</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
       text-align: center;
+      margin: 30px;
     }
     input, button {
       padding: 10px;
       margin: 10px;
-      width: 300px;
+      width: 320px;
     }
     #output {
       margin-top: 20px;
@@ -24,10 +24,10 @@
 </head>
 <body>
 
-  <h2>Gráfico de Funciones Matemáticas</h2>
-  <p>Ejemplos: <code>x^2 + 3*x - 4</code>, <code>2/(x-1)</code>, <code>sqrt(x)</code>, <code>log(x)</code>, <code>e^x</code></p>
+  <h2>📊 Graficador con Dominio Exacto y Asíntotas</h2>
+  <p>Ejemplos: <code>1/(x-2)</code>, <code>sqrt(x)</code>, <code>x^2</code>, <code>log(x)</code>, <code>e^x</code></p>
 
-  <input id="funcion" placeholder="Escribe la función: ej. x^2 - 4" />
+  <input id="funcion" placeholder="Escribe la función: ej. 2/(x-1)" />
   <button onclick="graficar()">Graficar</button>
 
   <div id="output"></div>
@@ -37,37 +37,85 @@
     function graficar() {
       const input = document.getElementById("funcion").value;
       const output = document.getElementById("output");
-
       let expr;
+
       try {
         expr = math.parse(input);
         var f = expr.compile();
-      } catch (e) {
-        output.innerHTML = "Error: expresión no válida.";
+      } catch {
+        output.innerHTML = "❌ Error: función no válida.";
+        hablar("Error. La función no es válida.");
         return;
       }
 
-      let xValues = [];
-      let yValues = [];
-      let asintotas = [];
+      // Análisis del dominio exacto
+      let dominioInfo = analizarDominio(expr);
+      let dominioTexto = dominioInfo.length > 0
+        ? `x ≠ ${dominioInfo.join(", ")}`
+        : "Todos los reales ℝ";
+
+      // Preparar datos para graficar
+      let xValues = [], yValues = [], asintotasV = [];
 
       for (let i = -100; i <= 100; i += 0.5) {
-        let scope = {x: i};
+        let scope = { x: i };
         try {
           let y = f.evaluate(scope);
           if (!isFinite(y)) {
             yValues.push(null);
-            asintotas.push(i);
+            asintotasV.push(i.toFixed(2));
           } else {
             yValues.push(y);
           }
-        } catch (err) {
+        } catch {
           yValues.push(null);
-          asintotas.push(i);
+          asintotasV.push(i.toFixed(2));
         }
         xValues.push(i);
       }
 
+      let yFiltrado = yValues.filter(v => v !== null && isFinite(v));
+      let minY = Math.min(...yFiltrado);
+      let maxY = Math.max(...yFiltrado);
+      let rangoTexto = `Desde aproximadamente ${minY.toFixed(2)} hasta ${maxY.toFixed(2)} (estimado)`;
+
+      // Estimar asíntotas horizontales
+      const limPos = estimarLimite(f, 1e6);
+      const limNeg = estimarLimite(f, -1e6);
+
+      let shapes = [];
+
+      // Asíntotas verticales
+      let asintotasUnicas = [...new Set(asintotasV)];
+      shapes.push(...asintotasUnicas.map(x0 => ({
+        type: 'line',
+        x0: parseFloat(x0), x1: parseFloat(x0),
+        y0: -100, y1: 100,
+        line: { color: 'red', width: 1.5, dash: 'dot' }
+      })));
+
+      // Asíntotas horizontales
+      let asintotasH = [];
+      if (isFinite(limPos)) {
+        shapes.push({
+          type: 'line',
+          x0: -100, x1: 100,
+          y0: limPos, y1: limPos,
+          line: { color: 'green', width: 1.5, dash: 'dashdot' }
+        });
+        asintotasH.push(limPos.toFixed(2));
+      }
+      if (isFinite(limNeg) && limNeg !== limPos) {
+        shapes.push({
+          type: 'line',
+          x0: -100, x1: 100,
+          y0: limNeg, y1: limNeg,
+          line: { color: 'green', width: 1.5, dash: 'dashdot' }
+        });
+        asintotasH.push(limNeg.toFixed(2));
+      }
+
+      // Graficar
       const trace = {
         x: xValues,
         y: yValues,
@@ -76,13 +124,6 @@
         line: { color: 'blue' }
       };
 
-      let shapes = asintotas.map(x0 => ({
-        type: 'line',
-        x0: x0, x1: x0,
-        y0: -100, y1: 100,
-        line: { color: 'red', width: 1, dash: 'dot' }
-      }));
-
       Plotly.newPlot('grafico', [trace], {
         title: `Gráfico de f(x) = ${input}`,
         xaxis: { title: 'x' },
@@ -90,18 +131,62 @@
         shapes: shapes
       });
 
-      const dominio = asintotas.length > 0
-        ? `Todos los reales excepto: x = ${[...new Set(asintotas.map(a => a.toFixed(2)))].join(", ")}`
-        : "Todos los reales ℝ";
+      // Mostrar resultados
+      const resultadoHTML = `
+        ✅ <b>Dominio exacto:</b> ${dominioTexto}<br>
+        📈 <b>Rango:</b> ${rangoTexto}<br>
+        🔺 <b>Asíntotas verticales:</b> ${asintotasUnicas.length > 0 ? asintotasUnicas.join(", ") : "Ninguna"}<br>
+        🔻 <b>Asíntotas horizontales:</b> ${asintotasH.length > 0 ? asintotasH.join(", ") : "Ninguna"}
+      `;
+      output.innerHTML = resultadoHTML;
 
-      let yFiltrado = yValues.filter(v => v !== null && isFinite(v));
-      let min = Math.min(...yFiltrado);
-      let max = Math.max(...yFiltrado);
-      const rango = `Desde aproximadamente ${min.toFixed(2)} hasta ${max.toFixed(2)}`;
+      // Bot de voz
+      let textoVoz = `El dominio es ${dominioTexto}. El rango es aproximadamente desde ${minY.toFixed(2)} hasta ${maxY.toFixed(2)}.`;
+      if (asintotasUnicas.length > 0) textoVoz += ` Asíntotas verticales en x igual a ${asintotasUnicas.join(", ")}.`;
+      if (asintotasH.length > 0) textoVoz += ` Asíntotas horizontales en y igual a ${asintotasH.join(", ")}.`;
+      hablar(textoVoz);
+    }
 
-      const resultadoTexto = `Dominio: ${dominio}<br>Rango: ${rango}`;
-      output.innerHTML = resultadoTexto;
-      hablar(`El dominio es ${dominio}. El rango es de ${min.toFixed(2)} a ${max.toFixed(2)}.`);
+    function estimarLimite(f, xValor) {
+      try {
+        return f.evaluate({ x: xValor });
+      } catch {
+        return NaN;
+      }
+    }
+
+    function analizarDominio(expr) {
+      let exclusiones = [];
+
+      expr.traverse(function (node) {
+        if (node.type === 'OperatorNode') {
+          if (node.op === '/') {
+            // Denominador ≠ 0
+            try {
+              let den = node.args[1];
+              let sol = math.simplify(`(${math.format(den)}) = 0`).evaluate();
+              if (typeof sol === 'number' && isFinite(sol)) {
+                exclusiones.push(sol.toFixed(2));
+              }
+            } catch {}
+          }
+        } else if (node.type === 'FunctionNode') {
+          if (node.fn.name === 'sqrt' || node.fn.name === 'log') {
+            try {
+              let arg = node.args[0];
+              for (let i = -100; i <= 100; i += 0.5) {
+                let val = arg.compile().evaluate({ x: i });
+                if ((node.fn.name === 'sqrt' && val < 0) ||
+                    (node.fn.name === 'log' && val <= 0)) {
+                  exclusiones.push(i.toFixed(2));
+                }
+              }
+            } catch {}
+          }
+        }
+      });
+
+      return [...new Set(exclusiones)];
     }
 
     function hablar(texto) {
