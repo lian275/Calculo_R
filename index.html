@@ -2,171 +2,174 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Funciones Lineales y Cuadráticas</title>
-  <script src="https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.min.js"></script>
-  <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+  <title>Analizador de Funciones</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-    }
-    input, button {
-      font-size: 16px;
-      padding: 10px;
-      margin: 5px 0;
-    }
-    #resultados {
-      margin-top: 20px;
-    }
-    #voz {
-      background-color: #28a745;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
+    body { font-family: Arial, sans-serif; background: #f2f2f2; padding: 20px; }
+    input, button { font-size: 16px; padding: 10px; margin: 5px; }
+    #grafico { margin-top: 30px; }
+    #bot-explica { margin-top: 20px; background: #e0f7fa; padding: 15px; border-radius: 10px; }
   </style>
 </head>
 <body>
 
-  <h2>Calculadora de Funciones</h2>
-  <label>Ingresa una función (por ejemplo: x^2 + 3*x - 4, 3*x + 2, 2/(x-1)):</label><br>
-  <input type="text" id="funcion" size="40" placeholder="Ej: x^2 - 4, 2*x+5, 2/(x-1)">
-  <button onclick="resolverFuncion()">Resolver</button>
-  <button id="voz" onclick="leerResultados()">🔊 Escuchar Resultados</button>
+<h2>📘 Analizador de Funciones Lineales, Cuadráticas y Racionales</h2>
+<p>Ejemplos válidos: <code>2*x + 3</code> | <code>x^2 - 4</code> | <code>2 / (x - 2)</code></p>
 
-  <div id="resultados"></div>
-  <div id="grafico" style="width:100%;height:500px;"></div>
+<input type="text" id="funcion" placeholder="Ejemplo: 2 / (x - 2)" size="40">
+<button onclick="graficarFuncion()">Graficar</button>
+<button onclick="leerBot()">🔊 Leer Explicación</button>
 
-  <script>
-    let descripcion = "";
+<div id="resultado"></div>
+<div id="grafico"></div>
+<div id="bot-explica"></div>
 
-    function resolverFuncion() {
-      const expresion = document.getElementById("funcion").value;
-      if (!expresion) return alert("Por favor, ingresa una función.");
+<script>
+  let ultimaExplicacion = "";
 
-      const expr = math.parse(expresion);
-      const f = expr.compile();
+  function graficarFuncion() {
+    const entrada = document.getElementById("funcion").value.trim();
+    const expresion = entrada.replace(/^y\\s*=\\s*/i, ''); // Remueve 'y=' si existe
+    const expr = math.parse(expresion);
+    const compiled = expr.compile();
+    const evaluar = x => {
+      try {
+        return compiled.evaluate({x});
+      } catch {
+        return NaN;
+      }
+    };
 
-      let xVals = [], yVals = [], asintotasV = [];
-      for (let i = -50; i <= 50; i += 0.1) {
-        const x = math.round(i, 3);
-        try {
-          const y = f.evaluate({ x });
-          if (Math.abs(y) > 1e5) {
-            yVals.push(null);
-            xVals.push(x);
-            asintotasV.push(x);
-          } else {
-            xVals.push(x);
-            yVals.push(y);
+    const res = document.getElementById("resultado");
+    const bot = document.getElementById("bot-explica");
+
+    let tipo = "lineal";
+    if (expresion.includes("x^2")) tipo = "cuadrática";
+    if (expresion.includes("/")) tipo = "racional";
+
+    let dominio = "ℝ (todos los reales)";
+    let rango = "";
+    let asintotasV = [], asintotaH = null;
+    let color = tipo === "lineal" ? "orange" : tipo === "cuadrática" ? "blue" : "purple";
+
+    try {
+      // Calcular rango para cuadráticas
+      if (tipo === "cuadrática") {
+        const f0 = evaluar(0), f1 = evaluar(1), f2 = evaluar(2);
+        const a = (f2 - 2 * f1 + f0);
+        const b = f1 - f0 - a;
+        const xV = -b / (2 * a);
+        const yV = evaluar(xV);
+        rango = a > 0 ? `[${yV.toFixed(2)}, ∞)` : `(-∞, ${yV.toFixed(2)}]`;
+      } else {
+        rango = "ℝ (todos los reales)";
+      }
+
+      // Detectar asíntotas verticales
+      for (let x = -100; x <= 100; x += 0.1) {
+        const y = evaluar(x);
+        if (!isFinite(y)) asintotasV.push(parseFloat(x.toFixed(1)));
+      }
+      asintotasV = [...new Set(asintotasV)];
+
+      // Asíntota horizontal
+      if (tipo === "racional") {
+        const limite = evaluar(1e5);
+        if (isFinite(limite)) asintotaH = `y = ${limite.toFixed(2)}`;
+      }
+
+      // Generar datos para gráfico
+      let x_vals = [], y_vals = [], puntos = {x: [], y: []};
+      for (let x = -20; x <= 20; x += 0.1) {
+        const y = evaluar(x);
+        if (isFinite(y)) {
+          x_vals.push(x);
+          y_vals.push(y);
+          if (Number.isInteger(x)) {
+            puntos.x.push(x);
+            puntos.y.push(y);
           }
-        } catch (e) {
-          xVals.push(x);
-          yVals.push(null);
-          asintotasV.push(x);
         }
       }
 
-      // Dominio
-      let dominio = "ℝ (todos los reales)";
-      if (expresion.includes("/")) {
-        try {
-          const partes = expresion.split("/");
-          if (partes[1]) {
-            const zeros = math.roots(math.parse(partes[1]));
-            if (zeros.length > 0) {
-              dominio = ℝ excepto x = ${zeros.map(z => math.round(z, 2)).join(", ")};
-            }
-          }
-        } catch (e) {
-          dominio = "Indeterminado (revisar función)";
+      const trazas = [
+        {
+          x: x_vals,
+          y: y_vals,
+          mode: 'lines',
+          name: 'f(x)',
+          line: { color: color }
+        },
+        {
+          x: puntos.x,
+          y: puntos.y,
+          mode: 'markers',
+          name: 'Puntos enteros',
+          marker: { color: 'black', size: 6 }
         }
-      }
+      ];
 
-      // Rango aproximado
-      const yFiltrado = yVals.filter(y => y !== null && isFinite(y));
-      const minY = Math.min(...yFiltrado);
-      const maxY = Math.max(...yFiltrado);
-      const rango = Aprox. y ∈ [${minY.toFixed(2)}, ${maxY.toFixed(2)}];
-
-      // Asíntota horizontal (caso racional)
-      let asintotaH = "";
-      if (expresion.includes("/")) {
-        const partes = expresion.split("/");
-        const num = partes[0];
-        const den = partes[1];
-        const gradoNum = (num.match(/x/g) || []).length;
-        const gradoDen = (den.match(/x/g) || []).length;
-
-        if (gradoNum < gradoDen) asintotaH = "y = 0";
-        else if (gradoNum === gradoDen) {
-          const coefNum = parseFloat(num.match(/-?\d*\.?\d+/)?.[0] || "1");
-          const coefDen = parseFloat(den.match(/-?\d*\.?\d+/)?.[0] || "1");
-          asintotaH = y = ${(coefNum / coefDen).toFixed(2)};
-        }
-      }
-
-      // Guardar texto para el bot de voz
-      descripcion = El dominio es: ${dominio}. El rango es: ${rango}.;
-      if (asintotasV.length > 0) descripcion += ` Hay asíntotas verticales visibles.`;
-      if (asintotaH) descripcion += ` La asíntota horizontal es: ${asintotaH}.`;
-
-      // Mostrar resultados
-      document.getElementById("resultados").innerHTML = `
-        <p><strong>Dominio:</strong> ${dominio}</p>
-        <p><strong>Rango:</strong> ${rango}</p>
-        ${asintotasV.length > 0 ? "<p><strong>Asíntotas Verticales:</strong> visibles donde y → ∞</p>" : ""}
-        ${asintotaH ? <p><strong>Asíntota Horizontal:</strong> ${asintotaH}</p> : ""}
-      `;
-
-      // Gráfica
-      const data = [{
-        x: xVals,
-        y: yVals,
-        mode: "lines",
-        name: "Función",
-        line: { color: "blue" }
-      }];
-
-      // Asíntotas verticales (rojo)
-      const unicasAV = [...new Set(asintotasV.map(x => x.toFixed(2)))];
-      unicasAV.forEach(x => {
-        data.push({
+      asintotasV.forEach(x => {
+        trazas.push({
           x: [x, x],
-          y: [minY - 10, maxY + 10],
-          mode: "lines",
-          name: As. V x=${x},
-          line: { color: "red", dash: "dashdot" },
-          hoverinfo: "skip"
+          y: [-100, 100],
+          mode: 'lines',
+          name: 'Asíntota vertical',
+          line: { dash: 'dash', color: 'red' }
         });
       });
 
-      // Asíntota horizontal (verde)
       if (asintotaH) {
         const yVal = parseFloat(asintotaH.split("=")[1]);
-        data.push({
-          x: [-50, 50],
+        trazas.push({
+          x: [-20, 20],
           y: [yVal, yVal],
-          mode: "lines",
-          name: "Asíntota Horizontal",
-          line: { color: "green", dash: "dashdot" },
-          hoverinfo: "skip"
+          mode: 'lines',
+          name: 'Asíntota horizontal',
+          line: { dash: 'dot', color: 'green' }
         });
       }
 
-      Plotly.newPlot("grafico", data, {
-        title: Gráfica de y = ${expresion},
-        xaxis: { title: "x" },
-        yaxis: { title: "y" }
+      Plotly.newPlot("grafico", trazas, {
+        title: `Gráfica de y = ${expresion}`,
+        xaxis: { title: 'x', range: [-20, 20] },
+        yaxis: { title: 'y' }
       });
-    }
 
-    function leerResultados() {
-      const voz = new SpeechSynthesisUtterance(descripcion);
-      voz.lang = "es-ES";
-      window.speechSynthesis.speak(voz);
+      res.innerHTML = `
+        <p><strong>📌 Tipo:</strong> Función ${tipo}</p>
+        <p><strong>🔑 Dominio:</strong> ${dominio}</p>
+        <p><strong>📈 Rango:</strong> ${rango}</p>
+        <p><strong>↕️ Asíntotas verticales:</strong> ${asintotasV.length ? asintotasV.join(', ') : 'Ninguna'}</p>
+        <p><strong>↔️ Asíntota horizontal:</strong> ${asintotaH || 'Ninguna'}</p>
+      `;
+
+      // Guardar explicación
+      ultimaExplicacion = `Esta es una función ${tipo}. El dominio es ${dominio}. El rango es ${rango}. `;
+      if (asintotasV.length) ultimaExplicacion += `Tiene asíntotas verticales en x = ${asintotasV.join(', ')}. `;
+      if (asintotaH) ultimaExplicacion += `Tiene una asíntota horizontal en ${asintotaH}.`;
+
+      bot.innerHTML = `<strong>🤖 Bot:</strong> ${ultimaExplicacion}`;
+
+    } catch (err) {
+      res.innerHTML = `<p style="color:red;">❌ Error: función inválida.</p>`;
+      Plotly.purge("grafico");
+      bot.innerHTML = "";
     }
-  </script>
+  }
+
+  function leerBot() {
+    if ('speechSynthesis' in window && ultimaExplicacion) {
+      const voz = new SpeechSynthesisUtterance(ultimaExplicacion);
+      voz.lang = 'es-ES';
+      speechSynthesis.cancel();
+      speechSynthesis.speak(voz);
+    } else {
+      alert('Tu navegador no soporta el bot de voz.');
+    }
+  }
+</script>
 
 </body>
 </html>
