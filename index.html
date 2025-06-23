@@ -2,38 +2,38 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Resolución de Ecuaciones Lineales con Bot</title>
+  <title>Funciones Lineales y Cuadráticas con Bot</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f7f7f7;
       padding: 20px;
+      background: #f4f4f4;
     }
     input, button {
       padding: 10px;
       font-size: 16px;
-      margin: 10px 5px 10px 0;
+      margin: 10px 5px;
     }
     #grafico {
       margin-top: 20px;
     }
     #bot-explica {
-      background: #e0f7fa;
-      padding: 15px;
       margin-top: 20px;
+      background-color: #e0f7fa;
+      padding: 15px;
       border-radius: 10px;
     }
   </style>
 </head>
 <body>
 
-  <h2>🧮 Resolver Ecuaciones Lineales + Dominio/Rango + Bot de Voz</h2>
-  <p>Escribe una ecuación lineal como: <code>2*x + 4 = 0</code></p>
+  <h2>📊 Resolver Funciones Lineales y Cuadráticas + Bot de Voz</h2>
+  <p>Ejemplos: <code>2*x + 4 = 0</code> | <code>x**2 - 4 = 0</code></p>
 
-  <input type="text" id="ecuacion" placeholder="Ej: 2*x + 4 = 0" size="30">
-  <button onclick="resolverEcuacion()">Resolver</button>
-  <button onclick="leerBot()">🔊 Leer con Bot</button>
+  <input type="text" id="ecuacion" placeholder="Ej: x**2 - 4 = 0" size="40">
+  <button onclick="resolverFuncion()">Resolver</button>
+  <button onclick="leerBot()">🔊 Leer en Voz Alta</button>
 
   <div id="resultado"></div>
   <div id="grafico"></div>
@@ -42,54 +42,81 @@
   <script>
     let ultimaExplicacion = "";
 
-    function resolverEcuacion() {
+    function resolverFuncion() {
       const ecuacion = document.getElementById("ecuacion").value;
       const resultado = document.getElementById("resultado");
       const bot = document.getElementById("bot-explica");
 
-      // Separar la ecuación en izquierda y derecha
       const partes = ecuacion.split("=");
       if (partes.length !== 2) {
-        resultado.innerHTML = "<p style='color:red;'>❌ Ecuación inválida. Usa el formato ax + b = 0</p>";
+        resultado.innerHTML = "<p style='color:red;'>❌ Formato inválido. Usa ax + b = 0 o ax² + bx + c = 0</p>";
         return;
       }
 
       try {
         const izquierda = partes[0];
         const derecha = partes[1];
+        const expr = x => eval(izquierda.replace(/x/g, `(${x})`)) - eval(derecha.replace(/x/g, `(${x})`));
 
-        // Creamos una función f(x) = izquierda - derecha
-        const f = x => eval(izquierda.replace(/x/g, `(${x})`)) - eval(derecha.replace(/x/g, `(${x})`));
+        // Detección de tipo de función
+        const isCuadratica = izquierda.includes("x**2") || izquierda.includes("x*x");
+        const tipo = isCuadratica ? "cuadrática" : "lineal";
 
-        // Resolver ecuación lineal f(x) = 0
-        const a = eval(izquierda.replace(/x/g, '(1)')) - eval(izquierda.replace(/x/g, '(0)')); // derivada ≈ coef x
-        const b = eval(izquierda.replace(/x/g, '(0)')) - eval(derecha); // término independiente
+        let solucion = "";
 
-        let solucion = null;
-        if (a === 0) {
-          solucion = b === 0 ? "Infinitas soluciones" : "No tiene solución";
+        if (tipo === "lineal") {
+          const a = eval(izquierda.replace(/x/g, '(1)')) - eval(izquierda.replace(/x/g, '(0)'));
+          const b = eval(izquierda.replace(/x/g, '(0)')) - eval(derecha);
+          if (a === 0) {
+            solucion = b === 0 ? "Infinitas soluciones" : "No tiene solución";
+          } else {
+            const x = -b / a;
+            solucion = `x = ${x.toFixed(2)}`;
+          }
         } else {
-          solucion = -b / a;
+          // cuadrática: ax^2 + bx + c = 0
+          const f0 = expr(0);
+          const f1 = expr(1);
+          const f2 = expr(2);
+          const a = (f2 - 2 * f1 + f0) / 1; // segunda diferencia = 2a
+          const b = f1 - f0 - a;
+          const c = f0;
+          const discriminante = b * b - 4 * a * c;
+
+          if (discriminante < 0) {
+            solucion = "No tiene soluciones reales";
+          } else if (discriminante === 0) {
+            const x = -b / (2 * a);
+            solucion = `x = ${x.toFixed(2)}`;
+          } else {
+            const x1 = (-b + Math.sqrt(discriminante)) / (2 * a);
+            const x2 = (-b - Math.sqrt(discriminante)) / (2 * a);
+            solucion = `x₁ = ${x1.toFixed(2)}, x₂ = ${x2.toFixed(2)}`;
+          }
         }
 
-        // Dominio y rango de función lineal
-        const dominio = "ℝ (todos los reales)";
-        const rango = "ℝ (todos los reales)";
-
-        // Mostrar resultados
-        resultado.innerHTML = `
-          <p>📘 <strong>Función asociada:</strong> f(x) = ${izquierda} - (${derecha})</p>
-          <p>✅ <strong>Solución de la ecuación:</strong> ${solucion}</p>
-          <p>📈 <strong>Dominio:</strong> ${dominio}</p>
-          <p>📉 <strong>Rango:</strong> ${rango}</p>
-        `;
-
-        // Gráfico
+        // Dominio: ℝ
+        // Rango: estimado a partir de la función evaluada
         let x_vals = [], y_vals = [];
         for (let i = -20; i <= 20; i += 0.1) {
-          x_vals.push(i);
-          y_vals.push(f(i));
+          try {
+            let y = expr(i);
+            if (typeof y === "number" && isFinite(y)) {
+              x_vals.push(i);
+              y_vals.push(y);
+            }
+          } catch (_) {}
         }
+
+        const rangoMin = Math.min(...y_vals).toFixed(2);
+        const rangoMax = Math.max(...y_vals).toFixed(2);
+
+        resultado.innerHTML = `
+          <p><strong>📘 Función asociada:</strong> f(x) = ${izquierda} - (${derecha})</p>
+          <p><strong>✅ Solución:</strong> ${solucion}</p>
+          <p><strong>📈 Dominio:</strong> ℝ (todos los reales)</p>
+          <p><strong>📉 Rango aproximado:</strong> [${rangoMin}, ${rangoMax}]</p>
+        `;
 
         Plotly.newPlot("grafico", [{
           x: x_vals,
@@ -98,36 +125,33 @@
           name: 'f(x)',
           line: { color: 'blue' }
         }], {
-          title: "Gráfica de f(x)",
+          title: `Gráfica de la función (${tipo})`,
           xaxis: { title: 'x', range: [-20, 20] },
-          yaxis: { title: 'f(x)' }
+          yaxis: { title: 'f(x)', range: [parseFloat(rangoMin) - 5, parseFloat(rangoMax) + 5] }
         });
 
-        // Bot explicativo
-        let explicacion = `🤖 Bot: Resolviste una ecuación lineal: ${ecuacion}. `;
-        if (typeof solucion === "string") {
-          explicacion += `La ecuación tiene: ${solucion}. `;
-        } else {
-          explicacion += `La solución es x = ${solucion.toFixed(2)}. `;
-        }
-        explicacion += `El dominio y el rango de una función lineal son todos los números reales.`;
-
-        bot.innerHTML = explicacion;
+        // BOT EXPLICATIVO
+        let explicacion = `Has ingresado una función ${tipo}. `;
+        explicacion += `La solución de la ecuación es: ${solucion}. `;
+        explicacion += `El dominio son todos los números reales. `;
+        explicacion += `El rango aproximado va de ${rangoMin} a ${rangoMax}.`;
+        bot.innerHTML = `<p>🤖 <strong>Bot:</strong> ${explicacion}</p>`;
         ultimaExplicacion = explicacion;
 
       } catch (e) {
-        resultado.innerHTML = "<p style='color:red;'>❌ Error al procesar la ecuación. Verifica la sintaxis.</p>";
+        resultado.innerHTML = "<p style='color:red;'>❌ Error en la función. Revisa tu expresión.</p>";
         Plotly.purge("grafico");
-        bot.innerHTML = '';
+        bot.innerHTML = "";
       }
     }
 
     function leerBot() {
       if ('speechSynthesis' in window) {
-        const utter = new SpeechSynthesisUtterance(ultimaExplicacion);
-        utter.lang = "es-ES";
-        utter.rate = 1;
-        window.speechSynthesis.speak(utter);
+        const voz = new SpeechSynthesisUtterance(ultimaExplicacion);
+        voz.lang = "es-ES";
+        voz.rate = 1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(voz);
       } else {
         alert("Tu navegador no soporta voz.");
       }
